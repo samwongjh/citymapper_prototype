@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   Activity,
   Crosshair,
-  Loader2
+  Loader2,
+  Bus
 } from 'lucide-react';
 import { findNearestStation } from '../utils/geolocation';
 
@@ -69,6 +70,30 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
     keyConfigured: boolean | null;
   } | null>(null);
   const [showHealthModal, setShowHealthModal] = useState<boolean>(false);
+
+  // LTA TrainServiceAlerts & SGT Headway state
+  const [alertData, setAlertData] = useState<{
+    status: number;
+    isDisrupted: boolean;
+    severity: string;
+    title: string;
+    message: string;
+    affectedStations: string[];
+    estimatedDelayMin: number;
+    freeBridgingBus: boolean;
+    bridgeBusAdvice: string | null;
+    isCurrentStationAffected?: boolean;
+  } | null>(null);
+
+  const [sgtData, setSgtData] = useState<{
+    period: string;
+    intervalMin: number;
+    intervalMax: number;
+    intervalLabel: string;
+    timeFormatted: string;
+    isPeak: boolean;
+    isLateNightOrEarlyMorning: boolean;
+  } | null>(null);
 
   // User GPS Geolocation State (navigator.geolocation.getCurrentPosition)
   const [isLocating, setIsLocating] = useState<boolean>(false);
@@ -126,9 +151,10 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
     setErrorMessage(null);
 
     try {
+      const stationCodes = station.codes.join(',');
       const endpoint = mode === 'live' 
-        ? '/api/train' 
-        : `/api/train?simulate=${mode}`;
+        ? `/api/train?station=${encodeURIComponent(station.id)}&stationCode=${encodeURIComponent(stationCodes)}` 
+        : `/api/train?simulate=${mode}&station=${encodeURIComponent(station.id)}&stationCode=${encodeURIComponent(stationCodes)}`;
 
       const res = await fetch(endpoint);
       const statusCode = res.status;
@@ -141,12 +167,18 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
       }
 
       if (statusCode === 200) {
-        if (body?.state === 'empty' || (Array.isArray(body?.data) && body.data.length === 0 && mode !== 'live')) {
+        if (body?.state === 'empty' || (Array.isArray(body?.data) && body.data.length === 0 && mode === 'empty')) {
           setPanelState('empty');
           setLiveData([]);
         } else {
           setPanelState('ok');
           setLiveData(Array.isArray(body?.data) ? body.data : []);
+          if (body?.alert) {
+            setAlertData(body.alert);
+          }
+          if (body?.sgt) {
+            setSgtData(body.sgt);
+          }
         }
       } else if (statusCode === 502) {
         setPanelState('refused');
@@ -367,6 +399,7 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
           {[
             { id: 'live', label: 'Live LTA Feed', desc: 'Real serverless call' },
+            { id: 'disruption', label: 'Disruption (Status 2)', desc: 'Simulate LTA Status 2 alert' },
             { id: 'loading', label: 'Loading', desc: 'Checking train times' },
             { id: 'empty', label: 'Empty (200)', desc: 'No timings listed' },
             { id: 'refused', label: 'Refused (502)', desc: 'Could not get times' },
@@ -621,6 +654,111 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
           </div>
         </div>
 
+        {/* Real-time SGT Headway Status Bar */}
+        <div className="mt-3.5 pt-3 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                alertData?.status === 2
+                  ? 'bg-rose-950/80 border border-rose-800 text-rose-300'
+                  : 'bg-emerald-950/70 border border-emerald-800/70 text-emerald-300'
+              }`}
+            >
+              {alertData?.status === 2 ? (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                  <span>LTA Status 2: Network Disruption</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>LTA Status 1: Normal Service</span>
+                </>
+              )}
+            </span>
+
+            {sgtData && (
+              <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-gray-800/90 border border-gray-700 text-gray-300 font-mono text-[11px]">
+                <Clock className="w-3.5 h-3.5 text-blue-400" />
+                <span>{sgtData.timeFormatted}</span>
+                <span className="text-gray-500">•</span>
+                <span className="text-blue-300 font-bold">{sgtData.intervalLabel}</span>
+              </span>
+            )}
+          </div>
+
+          {alertData?.freeBridgingBus && (
+            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-800 text-amber-300 text-xs font-bold">
+              <Bus className="w-3.5 h-3.5" />
+              <span>Bridge Buses Active</span>
+            </span>
+          )}
+        </div>
+
+        {/* LTA Status 2 Disruption Card */}
+        {alertData?.status === 2 && (
+          <div className="mt-3.5 rounded-xl border border-rose-600/70 bg-rose-950/40 p-4 text-white shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-rose-900/60">
+              <div className="flex items-center space-x-2">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                </span>
+                <span className="text-xs font-black uppercase tracking-wider text-rose-300">
+                  Active Service Disruption (Status 2)
+                </span>
+              </div>
+
+              {alertData.estimatedDelayMin > 0 && (
+                <span className="text-xs font-bold text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-md border border-amber-800 self-start sm:self-auto">
+                  Estimated Delay: +{alertData.estimatedDelayMin} mins
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs sm:text-sm font-semibold text-rose-100 mt-2.5 leading-relaxed">
+              {alertData.message}
+            </p>
+
+            {/* Affected Stations */}
+            {alertData.affectedStations && alertData.affectedStations.length > 0 && (
+              <div className="mt-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
+                  Affected Stations:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {alertData.affectedStations.map((code) => {
+                    const isSelectedStn = station.codes.some(c => c.toUpperCase() === code.toUpperCase());
+                    return (
+                      <span
+                        key={code}
+                        className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
+                          isSelectedStn
+                            ? 'bg-rose-600 text-white ring-2 ring-rose-300'
+                            : 'bg-gray-800 text-gray-200 border border-gray-700'
+                        }`}
+                      >
+                        {code} {isSelectedStn ? '(Here)' : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bridge Bus Advice */}
+            {alertData.bridgeBusAdvice && (
+              <div className="mt-3 pt-2.5 border-t border-rose-900/60 flex items-start space-x-2 text-xs text-amber-200 bg-amber-950/20 p-2.5 rounded-lg border border-amber-900/40">
+                <Bus className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-300 block">Bridge Bus Advice:</span>
+                  <span className="leading-snug text-amber-100">{alertData.bridgeBusAdvice}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Departure rows or Empty/Unreachable placeholder */}
         <div className="mt-4 space-y-3">
           {panelState === 'empty' ? (
@@ -680,6 +818,14 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
                           <span className="text-sm font-black text-white">
                             {dep.destination}
                           </span>
+                          {alertData?.status === 2 && (
+                            alertData.affectedStations?.some(c => station.codes.some(sc => sc.toUpperCase() === c.toUpperCase())) ||
+                            station.id.includes('pasir') || station.id.includes('tampines') || station.id.includes('simei') || station.id.includes('tanah_merah')
+                          ) && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-700">
+                              Delayed (+{alertData.estimatedDelayMin}m)
+                            </span>
+                          )}
                         </div>
                         <span className="text-[11px] text-gray-400">
                           {line?.name} • Next train {dep.trainLength} cars
@@ -697,7 +843,15 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
                             </span>
                           ) : (
                             <>
-                              <span className="text-2xl font-black text-emerald-400 font-mono">
+                              <span
+                                className={`text-2xl font-black font-mono ${
+                                  alertData?.status === 2 &&
+                                  (alertData.affectedStations?.some(c => station.codes.some(sc => sc.toUpperCase() === c.toUpperCase())) ||
+                                    station.id.includes('pasir') || station.id.includes('tampines') || station.id.includes('simei') || station.id.includes('tanah_merah'))
+                                    ? 'text-amber-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
                                 {dep.minUntilNext}
                               </span>
                               <span className="text-xs font-bold text-gray-400">min</span>

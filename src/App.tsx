@@ -5,6 +5,7 @@ import { TransitMap } from './components/TransitMap';
 import { LiveDepartures } from './components/LiveDepartures';
 import { ServiceAlerts } from './components/ServiceAlerts';
 import { StationDirectory } from './components/StationDirectory';
+import { FeedbackFooter } from './components/FeedbackFooter';
 import { TRANSIT_STATIONS } from './data/transitData';
 import { TransitStation, RouteOption, LineId } from './types';
 import { 
@@ -306,6 +307,9 @@ export default function App() {
           <span>Guide</span>
         </button>
       </div>
+
+      {/* Disqus Feedback & Community Discussions Footer */}
+      <FeedbackFooter currentTab={activeTab} />
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-auto py-3 px-4">

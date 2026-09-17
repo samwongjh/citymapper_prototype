@@ -33,9 +33,9 @@ export default async function handler(req, res) {
   try {
     const headers = keyConfigured ? { AccountKey: key.trim() } : {};
     const result = await fetchState(
-      'https://datamall2.mytransport.sg/ltaodataservice/GTFSRealtimeTrainTrip',
+      'https://datamall2.mytransport.sg/ltaodataservice/TrainServiceAlerts',
       { headers },
-      (b) => b?.Services
+      (b) => b?.value ?? b
     );
 
     reachable = result.state !== 'unreachable';
