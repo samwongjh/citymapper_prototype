@@ -15,8 +15,8 @@ import {
 import { TRANSIT_LINES } from '../data/transitData';
 
 interface HeaderProps {
-  activeTab: 'planner' | 'map' | 'departures' | 'alerts' | 'directory';
-  setActiveTab: (tab: 'planner' | 'map' | 'departures' | 'alerts' | 'directory') => void;
+  activeTab: 'planner' | 'departures' | 'alerts' | 'directory';
+  setActiveTab: (tab: 'planner' | 'departures' | 'alerts' | 'directory') => void;
   onSearchStation?: (query: string) => void;
 }
 
@@ -136,19 +136,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onSearc
           >
             <Navigation className="w-4 h-4" />
             <span>Route Planner</span>
-          </button>
-
-          <button
-            id="tab-btn-map"
-            onClick={() => setActiveTab('map')}
-            className={`px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center space-x-2 whitespace-nowrap transition-all cursor-pointer ${
-              activeTab === 'map'
-                ? 'bg-[#006d3e] text-white shadow-xs'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Network Map</span>
           </button>
 
           <button
