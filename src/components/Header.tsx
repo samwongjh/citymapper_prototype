@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onSearc
           </span>
           <span className="text-gray-400 hidden sm:inline">|</span>
           <span className="text-gray-300 hidden sm:inline">
-            Singapore Metropolitan Transit Authority (SMRT &amp; SBS Transit)
+            Singapore Land Transport Authority (SMRT &amp; SBS Transit)
           </span>
         </div>
         <div className="flex items-center space-x-4">
@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onSearc
                 </span>
               </div>
               <p className="text-xs text-gray-500 font-normal">
-                Metropolitan Rapid Transit &amp; Multimodal Wayfinding
+                Mass Rapid Transit &amp; Multimodal Wayfinding
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-export type LineId = 'NS' | 'EW' | 'NE' | 'CC' | 'DT' | 'TE';
+export type LineId = 'NS' | 'EW' | 'NE' | 'CC' | 'DT' | 'TE' | 'BP' | 'SK' | 'PG';
 
 export interface TransitLine {
   id: LineId;
@@ -107,4 +107,13 @@ export interface LiveTrain {
   progress: number; // 0 to 1
   carCount: number;
   crowdLevel: 'low' | 'moderate' | 'high';
+}
+
+export interface NetworkTrack {
+  lineId: LineId;
+  color: string;
+  name?: string;
+  path: string;
+  branchPath?: string;
+  stationIds: string[];
 }
