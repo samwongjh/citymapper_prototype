@@ -353,7 +353,7 @@ export const TransitMap: React.FC<TransitMapProps> = ({
             </filter>
           </defs>
 
-          {/* 1. Base Reference Vector Map: Complete authentic Singapore island coastline, nature reserves, lines, stations and CBD insert */}
+          {/* 1. Base Reference Vector Map: Singapore island coastline, nature reserves, lines, and stations with side map removed */}
           <image
             href="/singapore_mrt_network.svg"
             x="0"
@@ -515,6 +515,23 @@ export const TransitMap: React.FC<TransitMapProps> = ({
                           </g>
                         ))}
                       </g>
+
+                      {/* Station Name Label with white outline halo for high legibility */}
+                      <text
+                        x={station.x}
+                        y={station.y + 46}
+                        textAnchor="middle"
+                        fill="#0f172a"
+                        stroke="#ffffff"
+                        strokeWidth="7"
+                        paintOrder="stroke fill"
+                        fontSize="24"
+                        fontWeight="800"
+                        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                        letterSpacing="-0.3px"
+                      >
+                        {station.name}
+                      </text>
                     </g>
                   )}
 

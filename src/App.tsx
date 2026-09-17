@@ -308,18 +308,22 @@ export default function App() {
       </div>
 
       {/* Footer */}
-      <footer className="hidden md:block bg-white border-t border-gray-200 mt-auto py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
-          <div className="flex items-center space-x-3">
-            <span className="font-semibold text-gray-700">Urban Transit Navigator</span>
+      <footer className="bg-white border-t border-gray-200 mt-auto py-3 px-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2 text-center sm:text-left">
+          <div className="flex items-center space-x-2">
+            <span className="font-semibold text-gray-700">Singapore MRT Transit Navigator</span>
             <span>•</span>
-            <span>Singapore Mass Rapid Transit (MRT) System</span>
+            <span className="text-emerald-700 font-medium">Live Telemetry</span>
           </div>
-          <div className="flex items-center space-x-4 text-gray-400 text-[11px]">
-            <span>Real-Time LTA Datamall Telemetry</span>
-            <span>•</span>
-            <span>Contactless SimplyGo Fare Standard</span>
-          </div>
+          <p className="text-[11px] text-gray-500 max-w-3xl leading-relaxed">
+            Contains information from LTA DataMall and data.gov.sg, accessed{' '}
+            {new Date().toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+            , made available under the terms of the Singapore Open Data Licence version 1.0.
+          </p>
         </div>
       </footer>
     </div>
