@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   try {
     const headers = keyConfigured ? { AccountKey: key.trim() } : {};
     const result = await fetchState(
-      'https://datamall2.mytransport.sg/ltaodataservice/GTFSRealTimeTrain',
+      'https://datamall2.mytransport.sg/ltaodataservice/GTFSRealtimeTrainTrip',
       { headers },
       (b) => b?.Services
     );

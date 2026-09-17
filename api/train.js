@@ -84,7 +84,7 @@ export default async function handler(req, res) {
   }
 
   // Provider call with 6-second timeout and AccountKey header
-  const url = 'https://datamall2.mytransport.sg/ltaodataservice/GTFSRealTimeTrain';
+  const url = 'https://datamall2.mytransport.sg/ltaodataservice/GTFSRealtimeTrainTrip';
   const result = await fetchState(
     url,
     {

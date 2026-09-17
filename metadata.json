@@ -1,6 +1,6 @@
 {
   "name": "Urban Transit Navigator",
   "description": "High-density Mass Rapid Transit (MRT) planner and live network navigator with interactive Singapore MRT maps, multimodal routing, live train countdowns, and service alerts.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -24,8 +24,13 @@ import {
   Train,
   AlertCircle,
   Play,
-  RotateCcw
+  RotateCcw,
+  Crosshair,
+  Loader2,
+  CheckCircle2,
+  X
 } from 'lucide-react';
+import { findNearestStation } from '../utils/geolocation';
 
 interface TripPlannerProps {
   origin: TransitStation;
@@ -49,6 +54,74 @@ export const TripPlanner: React.FC<TripPlannerProps> = ({
   const [isNavigatingLive, setIsNavigatingLive] = useState<boolean>(false);
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
   const [expandedStopsStepId, setExpandedStopsStepId] = useState<string | null>(null);
+  const [geoLoading, setGeoLoading] = useState<boolean>(false);
+  const [geoFeedback, setGeoFeedback] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+    details?: string;
+  } | null>(null);
+
+  /**
+   * Invokes browser navigator.geolocation.getCurrentPosition to find user GPS location
+   * and automatically snaps origin to the closest Singapore MRT station
+   */
+  const handleGetCurrentPosition = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setGeoFeedback({
+        type: 'error',
+        message: 'Geolocation is not supported by your browser.',
+      });
+      return;
+    }
+
+    setGeoLoading(true);
+    setGeoFeedback({
+      type: 'info',
+      message: 'Calling navigator.geolocation.getCurrentPosition...',
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position: GeolocationPosition) => {
+        setGeoLoading(false);
+        const { latitude, longitude, accuracy } = position.coords;
+        const nearest = findNearestStation(latitude, longitude, TRANSIT_STATIONS);
+        if (nearest) {
+          onChangeOrigin(nearest.station);
+          setGeoFeedback({
+            type: 'success',
+            message: `Located nearest MRT: ${nearest.station.name} (${nearest.distanceFormatted})`,
+            details: `GPS: ${latitude.toFixed(4)}°, ${longitude.toFixed(4)}° (±${Math.round(accuracy)}m)`,
+          });
+        } else {
+          setGeoFeedback({
+            type: 'error',
+            message: 'Unable to match a nearby MRT station in Singapore.',
+          });
+        }
+      },
+      (error: GeolocationPositionError) => {
+        setGeoLoading(false);
+        let errorMsg = 'Could not acquire GPS position.';
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = 'Location permission was denied in your browser settings.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location unavailable. Please check your network or GPS.';
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = 'GPS location request timed out.';
+        }
+        setGeoFeedback({
+          type: 'error',
+          message: errorMsg,
+          details: error.message,
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 30000,
+      }
+    );
+  };
 
   // Available routes
   const routes = useMemo(() => {
@@ -106,9 +179,31 @@ export const TripPlanner: React.FC<TripPlannerProps> = ({
         <div className="flex flex-col sm:flex-row items-stretch gap-2.5 relative">
           {/* Origin selector */}
           <div className="flex-1 relative">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-              Origin Station / Landmark
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Origin Station / Landmark
+              </label>
+              <button
+                type="button"
+                id="trip-planner-locate-origin-btn"
+                onClick={handleGetCurrentPosition}
+                disabled={geoLoading}
+                className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#006d3e] hover:text-[#00522d] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                title="Detect current location via navigator.geolocation.getCurrentPosition"
+              >
+                {geoLoading ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Locating GPS...</span>
+                  </>
+                ) : (
+                  <>
+                    <Crosshair className="w-3 h-3" />
+                    <span>Use My Location (GPS)</span>
+                  </>
+                )}
+              </button>
+            </div>
             <div className="flex items-center bg-[#f9f9ff] border border-gray-200 rounded-xl px-3 py-2 focus-within:border-[#006d3e] focus-within:ring-1 focus-within:ring-[#006d3e] transition-all">
               <span className="w-3 h-3 rounded-full border-2 border-[#006d3e] bg-white mr-2.5 shrink-0" />
               <select
@@ -163,6 +258,45 @@ export const TripPlanner: React.FC<TripPlannerProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Geolocation Feedback Banner (navigator.geolocation.getCurrentPosition result) */}
+        {geoFeedback && (
+          <div
+            id="trip-planner-geo-banner"
+            className={`mt-2.5 px-3 py-2 rounded-xl text-xs flex items-center justify-between border transition-all ${
+              geoFeedback.type === 'success'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                : geoFeedback.type === 'error'
+                ? 'bg-amber-50 text-amber-900 border-amber-200'
+                : 'bg-blue-50 text-blue-900 border-blue-200'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              {geoFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : geoFeedback.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              ) : (
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+              )}
+              <div>
+                <span className="font-bold">{geoFeedback.message}</span>
+                {geoFeedback.details && (
+                  <span className="text-gray-500 text-[11px] ml-1.5 font-mono">
+                    {geoFeedback.details}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setGeoFeedback(null)}
+              className="text-gray-400 hover:text-gray-600 ml-2 p-1 rounded-md hover:bg-black/5 transition-colors cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Quick presets pills */}
         <div className="mt-3.5 pt-3 border-t border-gray-100 flex items-center space-x-2 overflow-x-auto scrollbar-none text-xs">

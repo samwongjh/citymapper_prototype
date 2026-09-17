@@ -34,6 +34,8 @@ export interface TransitStation {
   lines: LineId[];
   x: number; // SVG map coordinates
   y: number;
+  lat?: number; // WGS84 GPS Latitude
+  lng?: number; // WGS84 GPS Longitude
   zone: string;
   exits: StationExit[];
   amenities: StationAmenity[];

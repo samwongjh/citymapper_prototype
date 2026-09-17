@@ -20,8 +20,11 @@ import {
   AlertTriangle,
   XCircle,
   CheckCircle2,
-  Activity
+  Activity,
+  Crosshair,
+  Loader2
 } from 'lucide-react';
+import { findNearestStation } from '../utils/geolocation';
 
 interface LiveDeparturesProps {
   currentStation?: TransitStation;
@@ -67,7 +70,54 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
   } | null>(null);
   const [showHealthModal, setShowHealthModal] = useState<boolean>(false);
 
+  // User GPS Geolocation State (navigator.geolocation.getCurrentPosition)
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [geoNotice, setGeoNotice] = useState<string | null>(null);
+
   const station = TRANSIT_STATIONS.find(s => s.id === selectedStationId) || TRANSIT_STATIONS[7];
+
+  /**
+   * Invokes navigator.geolocation.getCurrentPosition to automatically switch
+   * to the closest MRT station
+   */
+  const handleLocateNearestStation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setGeoNotice('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsLocating(true);
+    setGeoNotice('Acquiring GPS position via navigator.geolocation.getCurrentPosition...');
+
+    navigator.geolocation.getCurrentPosition(
+      (position: GeolocationPosition) => {
+        setIsLocating(false);
+        const { latitude, longitude, accuracy } = position.coords;
+        const nearest = findNearestStation(latitude, longitude, TRANSIT_STATIONS);
+        if (nearest) {
+          handleStationChange(nearest.station.id);
+          setGeoNotice(
+            `Switched to nearest MRT: ${nearest.station.name} (${nearest.distanceFormatted} away, ±${Math.round(accuracy)}m)`
+          );
+        } else {
+          setGeoNotice('No matching MRT station found.');
+        }
+      },
+      (error: GeolocationPositionError) => {
+        setIsLocating(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setGeoNotice('Location permission was denied in your browser settings.');
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setGeoNotice('GPS position unavailable.');
+        } else if (error.code === error.TIMEOUT) {
+          setGeoNotice('Location request timed out.');
+        } else {
+          setGeoNotice(error.message || 'Unable to retrieve location.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  };
 
   // Core fetch function for train departures
   const fetchTrainData = useCallback(async (forcedMode?: string) => {
@@ -454,9 +504,31 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
 
         {/* Station Select & Quick Station Chips */}
         <div className="mt-3.5">
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-            Select Active Station
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Select Active Station
+            </label>
+            <button
+              type="button"
+              id="live-departures-locate-btn"
+              onClick={handleLocateNearestStation}
+              disabled={isLocating}
+              className="inline-flex items-center space-x-1 text-[11px] font-bold text-[#006d3e] hover:text-[#00522d] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+              title="Locate closest MRT via navigator.geolocation.getCurrentPosition"
+            >
+              {isLocating ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Locating GPS...</span>
+                </>
+              ) : (
+                <>
+                  <Crosshair className="w-3 h-3" />
+                  <span>Nearest To Me</span>
+                </>
+              )}
+            </button>
+          </div>
           <div className="flex items-center bg-[#f9f9ff] border border-gray-200 rounded-xl px-3 py-2">
             <MapPin className="w-4 h-4 text-[#006d3e] mr-2 shrink-0" />
             <select
@@ -471,6 +543,19 @@ export const LiveDepartures: React.FC<LiveDeparturesProps> = ({
               ))}
             </select>
           </div>
+
+          {/* GPS Notice Banner */}
+          {geoNotice && (
+            <div className="mt-2 text-xs bg-emerald-50/90 border border-emerald-200/80 text-emerald-900 rounded-xl px-3 py-1.5 flex items-center justify-between">
+              <span className="font-medium text-[11px]">{geoNotice}</span>
+              <button
+                onClick={() => setGeoNotice(null)}
+                className="text-emerald-600 hover:text-emerald-900 ml-2 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Station Quick Chips */}

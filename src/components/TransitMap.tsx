@@ -15,8 +15,15 @@ import {
   Compass,
   Search,
   CheckCircle2,
-  Train
+  Train,
+  Crosshair,
+  Loader2
 } from 'lucide-react';
+import { 
+  findNearestStation, 
+  projectGpsToMapCoordinates, 
+  formatDistance 
+} from '../utils/geolocation';
 
 interface TransitMapProps {
   selectedStation: TransitStation | null;
@@ -65,8 +72,88 @@ export const TransitMap: React.FC<TransitMapProps> = ({
   const [hoveredStation, setHoveredStation] = useState<TransitStation | null>(null);
   const [hoverScreenPos, setHoverScreenPos] = useState<{ x: number; y: number } | null>(null);
 
+  // User GPS Geolocation State (navigator.geolocation.getCurrentPosition)
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    svgX: number;
+    svgY: number;
+    nearestStation?: TransitStation;
+    distanceMeters?: number;
+  } | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const centerOnMapPoint = (targetX: number, targetY: number, targetZoom?: number) => {
+    const container = containerRef.current;
+    const width = container?.clientWidth || 1000;
+    const height = container?.clientHeight || 600;
+    const scale = Math.min(width / 11662, height / 6527);
+    const newZoom = targetZoom || zoom;
+    if (targetZoom) setZoom(targetZoom);
+
+    const dx = targetX - 5831;
+    const dy = targetY - 3263.5;
+
+    setPan({
+      x: -dx * scale * newZoom,
+      y: -dy * scale * newZoom,
+    });
+  };
+
+  /**
+   * Directly triggers navigator.geolocation.getCurrentPosition to locate user on the map
+   */
+  const handleLocateUser = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position: GeolocationPosition) => {
+        setIsLocating(false);
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+
+        const nearest = findNearestStation(lat, lng, TRANSIT_STATIONS);
+        const mapCoords = projectGpsToMapCoordinates(lat, lng, TRANSIT_STATIONS);
+
+        setUserLocation({
+          lat,
+          lng,
+          accuracy,
+          svgX: mapCoords.x,
+          svgY: mapCoords.y,
+          nearestStation: nearest?.station,
+          distanceMeters: nearest?.distanceMeters,
+        });
+
+        centerOnMapPoint(mapCoords.x, mapCoords.y, 2.2);
+      },
+      (error: GeolocationPositionError) => {
+        setIsLocating(false);
+        let msg = 'Could not acquire GPS location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = 'Location permission denied in your browser settings.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = 'Location unavailable. Please check your GPS signal.';
+        } else if (error.code === error.TIMEOUT) {
+          msg = 'GPS location request timed out.';
+        }
+        setLocationError(msg);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  };
 
   // Mouse pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -314,6 +401,24 @@ export const TransitMap: React.FC<TransitMapProps> = ({
             title="Reset Map View"
           >
             <RotateCcw className="w-4 h-4" />
+          </button>
+          <div className="w-px h-4 bg-gray-200" />
+          <button
+            id="transit-map-locate-btn"
+            onClick={handleLocateUser}
+            disabled={isLocating}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+              userLocation
+                ? 'bg-[#006d3e] text-white shadow-xs'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+            title="Locate my position on map (navigator.geolocation.getCurrentPosition)"
+          >
+            {isLocating ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#006d3e]" />
+            ) : (
+              <Crosshair className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>
@@ -566,8 +671,188 @@ export const TransitMap: React.FC<TransitMapProps> = ({
               );
             })}
           </g>
+
+          {/* 4. User Live GPS Location Indicator (navigator.geolocation.getCurrentPosition) */}
+          {userLocation && (
+            <g id="user-live-gps-position-marker">
+              {/* Accuracy radius ring */}
+              <circle
+                cx={userLocation.svgX}
+                cy={userLocation.svgY}
+                r={Math.max(80, Math.min(260, (userLocation.accuracy || 30) * 3))}
+                fill="#3b82f6"
+                fillOpacity="0.16"
+                stroke="#2563eb"
+                strokeWidth="5"
+                strokeDasharray="14 8"
+              />
+
+              {/* Animated radar sonar pulse */}
+              <circle
+                cx={userLocation.svgX}
+                cy={userLocation.svgY}
+                r="40"
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="8"
+                opacity="0.8"
+              >
+                <animate
+                  attributeName="r"
+                  values="25;90"
+                  dur="2.4s"
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values="0.9;0"
+                  dur="2.4s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+
+              {/* White boundary ring */}
+              <circle
+                cx={userLocation.svgX}
+                cy={userLocation.svgY}
+                r="32"
+                fill="#ffffff"
+                stroke="#2563eb"
+                strokeWidth="8"
+                filter="url(#mrt-route-glow)"
+              />
+
+              {/* Core blue indicator */}
+              <circle
+                cx={userLocation.svgX}
+                cy={userLocation.svgY}
+                r="20"
+                fill="#2563eb"
+              />
+
+              {/* Badge label */}
+              <g transform={`translate(${userLocation.svgX}, ${userLocation.svgY - 48})`}>
+                <rect
+                  x="-110"
+                  y="-32"
+                  width="220"
+                  height="40"
+                  rx="20"
+                  fill="#1e3a8a"
+                  stroke="#ffffff"
+                  strokeWidth="4"
+                />
+                <text
+                  x="0"
+                  y="-7"
+                  textAnchor="middle"
+                  fill="#ffffff"
+                  fontSize="20"
+                  fontWeight="900"
+                  fontFamily="system-ui, -apple-system, sans-serif"
+                  letterSpacing="0.5px"
+                >
+                  YOU ARE HERE
+                </text>
+              </g>
+            </g>
+          )}
         </svg>
       </div>
+
+      {/* Floating GPS Location Status Card */}
+      {userLocation && (
+        <div
+          id="user-gps-location-card"
+          className="absolute top-16 left-3 z-30 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-blue-200/90 p-3.5 max-w-xs text-xs animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+            <div className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+              <span className="font-extrabold text-blue-900 text-xs uppercase tracking-wider">
+                GPS Position Acquired
+              </span>
+            </div>
+            <button
+              onClick={() => setUserLocation(null)}
+              className="text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors cursor-pointer"
+              title="Close GPS Card"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="mt-2 space-y-1">
+            <p className="text-gray-600 text-[11px]">
+              Nearest Station:{' '}
+              <span className="font-bold text-gray-900">
+                {userLocation.nearestStation?.name || 'Singapore MRT'}
+              </span>
+              {userLocation.distanceMeters !== undefined && (
+                <span className="text-emerald-700 font-bold ml-1">
+                  ({formatDistance(userLocation.distanceMeters)} away)
+                </span>
+              )}
+            </p>
+            <p className="text-[10px] text-gray-400 font-mono">
+              GPS: {userLocation.lat.toFixed(4)}°, {userLocation.lng.toFixed(4)}° (±
+              {Math.round(userLocation.accuracy || 20)}m)
+            </p>
+          </div>
+
+          <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center space-x-1.5">
+            {userLocation.nearestStation && (
+              <>
+                <button
+                  onClick={() => {
+                    if (userLocation.nearestStation) {
+                      onSelectStation(userLocation.nearestStation);
+                    }
+                  }}
+                  className="flex-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg text-[11px] transition-colors cursor-pointer text-center"
+                >
+                  View Details
+                </button>
+                {onSetOrigin && (
+                  <button
+                    onClick={() => {
+                      if (userLocation.nearestStation) {
+                        onSetOrigin(userLocation.nearestStation);
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#006d3e] font-bold rounded-lg text-[11px] transition-colors cursor-pointer text-center"
+                  >
+                    Set Origin
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              onClick={handleLocateUser}
+              className="p-1 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title="Refresh GPS Position"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Location Error Toast */}
+      {locationError && (
+        <div className="absolute top-16 left-3 z-30 bg-amber-50/95 backdrop-blur-md rounded-xl shadow-lg border border-amber-200 p-2.5 max-w-xs text-xs text-amber-900 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+            <span className="text-[11px] font-semibold">{locationError}</span>
+          </div>
+          <button
+            onClick={() => setLocationError(null)}
+            className="text-amber-500 hover:text-amber-800 ml-2 p-0.5"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Interactive Station Hover Tooltip */}
       {hoveredStation && hoverScreenPos && (

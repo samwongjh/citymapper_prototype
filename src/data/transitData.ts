@@ -1,4 +1,5 @@
 import { TransitLine, TransitStation, RouteOption, LiveDeparture, ServiceAlert, LineId, NetworkTrack } from '../types';
+import { STATION_GPS_COORDINATES } from '../utils/geolocation';
 
 export const TRANSIT_LINES: TransitLine[] = [
   {
@@ -1577,3 +1578,13 @@ export function getLineColor(id: LineId): string {
   const line = TRANSIT_LINES.find(l => l.id === id);
   return line ? line.color : '#006d3e';
 }
+
+// Enrich stations with GPS coordinates
+TRANSIT_STATIONS.forEach((s) => {
+  const coords = STATION_GPS_COORDINATES[s.id];
+  if (coords) {
+    s.lat = coords.lat;
+    s.lng = coords.lng;
+  }
+});
+
