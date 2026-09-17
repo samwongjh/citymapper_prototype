@@ -1,0 +1,6 @@
+{
+  "name": "Urban Transit Navigator",
+  "description": "High-density metropolitan transit planner and live network navigator with interactive MRT maps, multimodal routing, live train countdowns, and service alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
