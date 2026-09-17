@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { MessageSquare, RefreshCw, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { MessageSquare, RefreshCw, CheckCircle2, ExternalLink } from 'lucide-react';
 
 interface FeedbackFooterProps {
   currentTab?: string;
@@ -9,36 +9,50 @@ interface FeedbackFooterProps {
 export const DISQUS_PAGE_URL = 'https://ais-pre-ff7v32pnpgl7wxomddfd4d-236557882124.asia-southeast1.run.app/feedback';
 export const DISQUS_PAGE_IDENTIFIER = 'sg-citymapper-feedback';
 
-export const FeedbackFooter: React.FC<FeedbackFooterProps> = ({ currentTab }) => {
+export const FeedbackFooter: React.FC<FeedbackFooterProps> = ({ currentTab: _currentTab }) => {
   const [isReloading, setIsReloading] = useState(false);
   const [reloadedNotice, setReloadedNotice] = useState(false);
+  const isExecutingRef = useRef(false);
 
   // Reload / Reset Disqus in a Single-Page Application (SPA)
-  const loadOrResetDisqus = () => {
-    setIsReloading(true);
-
+  const loadOrResetDisqus = (forceReset = false) => {
     if (typeof window === 'undefined') return;
+    if (isExecutingRef.current) return;
+    isExecutingRef.current = true;
+    setIsReloading(true);
 
     try {
       const win = window as any;
+      const threadEl = document.getElementById('disqus_thread');
+      if (!threadEl) {
+        isExecutingRef.current = false;
+        setIsReloading(false);
+        return;
+      }
+
+      // Configure disqus_config variable first
+      win.disqus_config = function (this: any) {
+        this.page.url = DISQUS_PAGE_URL;
+        this.page.identifier = DISQUS_PAGE_IDENTIFIER;
+      };
 
       // In a SPA: If Disqus is already initialized on the page, use DISQUS.reset
-      if (typeof win.DISQUS !== 'undefined') {
-        win.DISQUS.reset({
-          reload: true,
-          config: function (this: any) {
-            this.page.url = DISQUS_PAGE_URL;
-            this.page.identifier = DISQUS_PAGE_IDENTIFIER;
-          },
-        });
+      if (forceReset && win.DISQUS && typeof win.DISQUS.reset === 'function') {
+        try {
+          win.DISQUS.reset({
+            reload: true,
+            config: function (this: any) {
+              this.page.url = DISQUS_PAGE_URL;
+              this.page.identifier = DISQUS_PAGE_IDENTIFIER;
+            },
+          });
+          setReloadedNotice(true);
+          setTimeout(() => setReloadedNotice(false), 3000);
+        } catch (resetErr) {
+          console.warn('Disqus reset non-fatal notice:', resetErr);
+        }
       } else {
-        // Set real fixed values for page.url and page.identifier
-        win.disqus_config = function (this: any) {
-          this.page.url = DISQUS_PAGE_URL;
-          this.page.identifier = DISQUS_PAGE_IDENTIFIER;
-        };
-
-        // Check if script is already present in document
+        // If script is not yet present, inject it safely
         const existingScript = document.querySelector('script[src*="sg-citymapper.disqus.com/embed.js"]');
         if (!existingScript) {
           const d = document;
@@ -46,28 +60,40 @@ export const FeedbackFooter: React.FC<FeedbackFooterProps> = ({ currentTab }) =>
           s.src = 'https://sg-citymapper.disqus.com/embed.js';
           s.setAttribute('data-timestamp', String(+new Date()));
           s.async = true;
+          s.onerror = (e) => {
+            console.warn('Disqus embed script network notice (blocked by browser privacy or iframe sandbox):', e);
+          };
           (d.head || d.body).appendChild(s);
+        } else if (forceReset && win.DISQUS && typeof win.DISQUS.reset === 'function') {
+          win.DISQUS.reset({
+            reload: true,
+            config: function (this: any) {
+              this.page.url = DISQUS_PAGE_URL;
+              this.page.identifier = DISQUS_PAGE_IDENTIFIER;
+            },
+          });
+          setReloadedNotice(true);
+          setTimeout(() => setReloadedNotice(false), 3000);
         }
       }
-
-      setReloadedNotice(true);
-      setTimeout(() => setReloadedNotice(false), 3000);
     } catch (err) {
-      console.warn('Disqus load/reset warning:', err);
+      console.warn('Disqus load notice:', err);
     } finally {
-      setTimeout(() => setIsReloading(false), 500);
+      setTimeout(() => {
+        isExecutingRef.current = false;
+        setIsReloading(false);
+      }, 500);
     }
   };
 
-  // Ensure Disqus reloads properly on mount or whenever the SPA tab changes
+  // Mount once when the component renders, with a slight delay for DOM stability
   useEffect(() => {
-    // Delay slightly to ensure DOM container #disqus_thread is fully mounted
     const timer = setTimeout(() => {
-      loadOrResetDisqus();
-    }, 150);
+      loadOrResetDisqus(false);
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [currentTab]);
+  }, []);
 
   return (
     <div id="feedback-footer" className="w-full bg-white border-t border-[#e5e7eb] py-8 px-4 sm:px-6 mt-8">
@@ -103,7 +129,7 @@ export const FeedbackFooter: React.FC<FeedbackFooterProps> = ({ currentTab }) =>
 
             <button
               id="reload-disqus-btn"
-              onClick={loadOrResetDisqus}
+              onClick={() => loadOrResetDisqus(true)}
               disabled={isReloading}
               className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
               title="Reload comments thread in this single-page app"
@@ -125,10 +151,18 @@ export const FeedbackFooter: React.FC<FeedbackFooterProps> = ({ currentTab }) =>
           </noscript>
         </div>
 
-        {/* Small metadata notice */}
-        <div className="mt-3 flex items-center justify-between text-[11px] text-gray-400 px-1">
+        {/* Small metadata notice & direct link */}
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-gray-400 px-1">
           <span>Identifier: <code className="font-mono text-gray-600 font-semibold">{DISQUS_PAGE_IDENTIFIER}</code></span>
-          <span>Target: <span className="font-mono text-gray-600">{DISQUS_PAGE_URL}</span></span>
+          <a
+            href="https://disqus.com/home/forums/sg-citymapper/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center space-x-1 text-gray-500 hover:text-emerald-700 hover:underline"
+          >
+            <span>Open in Disqus</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
       </div>
     </div>
